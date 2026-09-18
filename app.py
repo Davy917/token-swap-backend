@@ -49,24 +49,25 @@ def find_pool_id(token_a, token_b):
         return None
     return common_pool_ids.pop()
 
-def normalize_token_pair(token_a, token_b):
-    tokens = sorted([token_a.upper(), token_b.upper()])
-    return tokens[0], tokens[1]
+def normalize_token_pair(token_a, token_b, reserve_a, reserve_b):
+    pairs = sorted([(token_a.upper(), reserve_a), (token_b.upper(), reserve_b)])
+    return pairs[0][0], pairs[1][0], pairs[0][1], pairs[1][1]
 
 def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
-    token_a, token_b = normalize_token_pair(token_a, token_b)
+    token_a, token_b, reserve_a, reserve_b = normalize_token_pair(token_a, token_b, reserve_a, reserve_b)
     existing_pool = Pool.query.filter_by(token_a=token_a, token_b=token_b).first()
     if existing_pool:
         return None, "這個交易對已經存在"
     new_pool = Pool(
         token_a=token_a,
         token_b=token_b,
-        last_update_time=datetime.now().isoformat()
+        last_updated_time=datetime.now().isoformat()
     )
     db.session.add(new_pool)
     try:
         db.session.commit()
     except IntegrityError:
+        db.session.rollback()
         return None, "這個交易對已經存在（資料庫層級攔截）"
 
     reserve_a_row = PoolReserve(pool_id=new_pool.id, token=token_a, reserve=reserve_a)
@@ -98,7 +99,7 @@ def hello():
 def add():
     a = request.args.get("a", type=int)
     b = request.args.get("b", type=int)
-    if a is None and b is None:
+    if a is None or b is None:
         return {"error": "缺少參數 a 或 b，或參數不是合法整數"}, 400
     result = a + b
     return {"result": result}

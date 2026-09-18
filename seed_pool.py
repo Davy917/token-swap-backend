@@ -1,27 +1,11 @@
-import token
+from app import app, create_pool_if_not_exist
 
-from app import app, db, Pool, PoolReserve
-from datetime import datetime
 from decimal import Decimal
 with app.app_context():
-    existing_pool = Pool.query.first()
-    if existing_pool:
-        print("流動性池已經存在，不重複建立")
+    new_pool, error = create_pool_if_not_exist("USDT", "BTC", Decimal("100000"), Decimal("2"))
+    if error:
+        print(f"建立失敗：{error}")
     else:
-        new_pool = Pool(
-            token_a="USDT",
-            token_b="BTC",
-            last_updated_time=datetime.now().isoformat()
-        )
-        db.session.add(new_pool)
-        db.session.commit()
-
-        #注意：一定要先 commit() 把 Pool 寫入，才能接著用 new_pool.id 去建立 PoolReserve
-        reserve_usdt = PoolReserve(pool_id=new_pool.id, token="USDT", reserve=Decimal("100000"))
-        reserve_btc = PoolReserve(pool_id=new_pool.id, token="BTC", reserve=Decimal("2"))
-        db.session.add(reserve_usdt)
-        db.session.add(reserve_btc)
-        db.session.commit()
         print(f"流動性池已建立完成，pool_id = {new_pool.id}")
 
 """
