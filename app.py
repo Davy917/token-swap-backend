@@ -1,10 +1,12 @@
 import os
+from unittest import result
 
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
 from decimal import Decimal
+from sqlalchemy import select
 
 from sqlalchemy.exc import IntegrityError
 
@@ -77,19 +79,39 @@ def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
     db.session.commit()
 
     return new_pool, None
-"""
-db.Numeric(precision=30, scale=10)
-這是 SQLAlchemy 對應到 Decimal 的資料庫欄位型別，取代原本的 db.Float
-precision=30：這個數字總共可以有 30 位數字（整數位 + 小數位加起來）
-scale=10：其中，小數點後最多 10 位
 
-Pool 表（池子本身的資訊）：
-| id | last_updated_time |
-|----|--------------------|
+def execute_swap(token_in, token_out, amount_in):
+    token_in = token_in.upper()
+    token_out = token_out.upper()
+    pool_id = find_pool_id(token_in, token_out)
+    if pool_id is None:
+        return None, f"找不到 {token_in}/{token_out} 這個交易對的池子"
+    reserve_in_row = db.session.execute(
+        select(PoolReserve).filter_by(pool_id=pool_id, token=token_in).with_for_update()
+    ).scalar_one()
+    reserve_out_row = db.session.execute(
+        select(PoolReserve).filter_by(pool_id=pool_id, token=token_out).with_for_update()
+    ).scalar_one()
+    reserve_in = reserve_in_row.reserve
+    reserve_out = reserve_out_row.reserve
 
-PoolReserve 表（池子裡每種代幣的儲備量）：
-| id | pool_id | token | reserve |
-"""
+    k = reserve_in * reserve_out
+    new_reserve_in = reserve_in + amount_in
+    new_reserve_out = k / new_reserve_in
+    amount_out = reserve_out - new_reserve_out
+
+    reserve_in_row.reserve = new_reserve_in
+    reserve_out_row.reserve = new_reserve_out
+
+    new_swap = Swap(
+        token_in=token_in,
+        token_out=token_out,
+        amount_in=amount_in,
+        created_at=datetime.now().isoformat()
+    )
+    db.session.add(new_swap)
+    db.session.commit()
+    return {"amountOut": amount_out, "swapId": new_swap.id}, None
 
 @app.route("/hello")
 def hello():
@@ -112,20 +134,23 @@ def swap():
     amount_in = data.get("amountIn")
     if token_in is None or token_out is None or amount_in is None:
         return {"error": "缺少必要欄位 tokenIn、tokenOut 或 amountIn"}, 400
-    new_swap = Swap( # 建立一個 Swap 物件
-        token_in=token_in,
-        token_out=token_out,
-        amount_in=amount_in,
-        created_at=datetime.now().isoformat()
-    )
-    db.session.add(new_swap) # 加進「暫存區」
-    db.session.commit() # 真正寫入
+
+    try:
+        amount_in = Decimal(str(amount_in))
+    except Exception:
+        return {"error": "amountIn 必須是合法數字"}, 400
+
+    result, error = execute_swap(token_in, token_out, amount_in)
+    if error:
+        return {"error": error}, 400
+
     return {
-        "id": new_swap.id,
-        "tokenIn": new_swap.token_in,
-        "tokenOut": new_swap.token_out,
-        "createdAt": new_swap.created_at,
-        "message": "swap 記錄已存入資料庫"
+        "tokenIn": token_in.upper(),
+        "tokenOut": token_out.upper(),
+        "amountIn": str(amount_in),
+        "amountOut": str(result["amountOut"]),
+        "swapId": result["swapId"],
+        "message": "swap 執行成功"
     }
 
 @app.route("/swaps", methods=["GET"])
@@ -206,4 +231,16 @@ https://sqlalchemy.flask.org.cn/en/3.1.x/
 Quickstart (快速入門)：教你如何正確地在 Flask 中初始化 db，並建立第一個資料模型（Model）。
 Models (模型定義)：說明如何定義資料表、欄位型態以及設定「一對多」、「多對多」的關聯。
 Queries (查詢資料)：在 Flask-SQLAlchemy 3.x 版本之後，查詢方式已經全面推薦使用 SQLAlchemy 2.0 的 db.select() 風格，文檔裡有詳細的範例。
+
+db.Numeric(precision=30, scale=10)
+這是 SQLAlchemy 對應到 Decimal 的資料庫欄位型別，取代原本的 db.Float
+precision=30：這個數字總共可以有 30 位數字（整數位 + 小數位加起來）
+scale=10：其中，小數點後最多 10 位
+
+Pool 表（池子本身的資訊）：
+| id | last_updated_time |
+|----|--------------------|
+
+PoolReserve 表（池子裡每種代幣的儲備量）：
+| id | pool_id | token | reserve |
 """
