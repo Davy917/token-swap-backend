@@ -1,13 +1,10 @@
 import os
-from unittest import result
-
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
-from decimal import Decimal
 from sqlalchemy import select
-
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError
 
 #os.path.abspath(...) 確保得到的是完整的絕對路徑，不管你從哪裡執行這支程式，都會精準指向 app.py 所在的那個資料夾
@@ -16,6 +13,7 @@ app = Flask(__name__)
 CORS(app) #這行要放在 app = Flask(__name__) 之後，因為你需要先有 app 這個實例，才能對它套用 CORS 設定。
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "swap.db")
 db = SQLAlchemy(app) #把 SQLAlchemy 這個工具跟你的 Flask app 綁在一起，之後 db 這個變數就是你操作資料庫的入口。
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY")
 
 class Swap(db.Model): # db.Model 是 SQLAlchemy 提供的基礎類別，繼承它就代表「這個類別對應到資料庫裡的一張表」
     __tablename__ = "swaps"
@@ -213,6 +211,46 @@ def get_quote():
         "amountIn": str(amount_in),
         "amountOut": str(amount_out)
     }
+
+@app.route("/pools", methods=["POST"])
+def create_pool():
+    # 1. 驗證身分
+    api_key = request.headers.get("X-API-Key")
+    if not ADMIN_API_KEY or api_key != ADMIN_API_KEY:
+        return {"error": "未授權"}, 401
+
+    # 2. 驗證輸入
+    data = request.get_json(silent=True)
+    if data is None:
+        return {"error": "請求內容必須是 JSON"}, 400
+
+    token_a = data.get("tokenA")
+    token_b = data.get("tokenB")
+    reserve_a = data.get("reserveA")
+    reserve_b = data.get("reserveB")
+
+    if not token_a or not token_b or reserve_a is None or reserve_b is None:
+        return {"error": "缺少必要欄位"}, 400
+
+    token_a = token_a.strip().upper() # strip() 是 Python 字串方法，移除字串前後的空白字元
+    token_b = token_b.strip().upper()
+    if token_a == token_b:
+        return {"error": "兩個代幣不能相同"}, 400
+
+    try:
+        reserve_a = Decimal(str(reserve_a))
+        reserve_b = Decimal(str(reserve_b))
+    except InvalidOperation:
+        return {"error": "儲備量必須是合法數字"}, 400
+    if reserve_a <= 0 or reserve_b <= 0:
+        return {"error": "儲備量必須大於 0"}, 400
+
+    # 3. 建立池子
+    new_pool, error = create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b)
+    if error:
+        return {"error": error}, 409
+    return {"poolId": new_pool.id, "tokenA": new_pool.token_a, "tokenB": new_pool.token_b}, 201
+
 if __name__ == "__main__":
     app.run(debug=True)
 """
