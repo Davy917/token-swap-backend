@@ -53,6 +53,12 @@ def normalize_token_pair(token_a, token_b, reserve_a, reserve_b):
     pairs = sorted([(token_a.upper(), reserve_a), (token_b.upper(), reserve_b)])
     return pairs[0][0], pairs[1][0], pairs[0][1], pairs[1][1]
 
+def normalize_token(token):
+    if not isinstance(token, str): #檢查 token 是否是字串型別
+        return None
+    token = token.strip().upper()
+    return token or None
+
 def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
     token_a, token_b, reserve_a, reserve_b = normalize_token_pair(token_a, token_b, reserve_a, reserve_b)
     existing_pool = Pool.query.filter_by(token_a=token_a, token_b=token_b).first()
@@ -79,8 +85,8 @@ def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
     return new_pool, None
 
 def execute_swap(token_in, token_out, amount_in):
-    token_in = token_in.upper()
-    token_out = token_out.upper()
+    token_in = token_in.strip().upper()
+    token_out = token_out.strip().upper()
     pool_id = find_pool_id(token_in, token_out)
     if pool_id is None:
         return None, f"找不到 {token_in}/{token_out} 這個交易對的池子"
@@ -183,9 +189,10 @@ def get_swap_by_id(swap_id):
 """
 @app.route("/quote", methods=["GET"])
 def get_quote():
-    token_in = request.args.get("tokenIn", type=str).upper()
-    token_out = request.args.get("tokenOut", type=str).upper()
+    token_in = normalize_token(request.args.get("tokenIn", type=str))
+    token_out = normalize_token(request.args.get("tokenOut", type=str))
     amount_in = request.args.get("amount", type=Decimal)
+
     if token_in is None or token_out is None or amount_in is None:
         return {"error": "缺少必要參數 tokenIn、tokenOut 或 amount"}, 400
     pool_id = find_pool_id(token_in, token_out)
