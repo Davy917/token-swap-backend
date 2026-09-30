@@ -56,7 +56,7 @@ def normalize_token_pair(token_a, token_b, reserve_a, reserve_b):
 def normalize_token(token):
     if not isinstance(token, str): #檢查 token 是否是字串型別
         return None
-    token = token.strip().upper()
+    token = token.strip().upper() # strip() 是 Python 字串方法，移除字串前後的空白字元
     return token or None
 
 def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
@@ -85,8 +85,7 @@ def create_pool_if_not_exist(token_a, token_b, reserve_a, reserve_b):
     return new_pool, None
 
 def execute_swap(token_in, token_out, amount_in):
-    token_in = token_in.strip().upper()
-    token_out = token_out.strip().upper()
+    
     pool_id = find_pool_id(token_in, token_out)
     if pool_id is None:
         return None, f"找不到 {token_in}/{token_out} 這個交易對的池子"
@@ -139,6 +138,11 @@ def swap():
     if token_in is None or token_out is None or amount_in is None:
         return {"error": "缺少必要欄位 tokenIn、tokenOut 或 amountIn"}, 400
 
+    token_in = normalize_token(token_in)
+    token_out = normalize_token(token_out)
+    if token_in is None or token_out is None:
+        return {"error": "tokenIn 或 tokenOut 格式錯誤"}, 400
+
     try:
         amount_in = Decimal(str(amount_in))
     except Exception:
@@ -189,12 +193,18 @@ def get_swap_by_id(swap_id):
 """
 @app.route("/quote", methods=["GET"])
 def get_quote():
-    token_in = normalize_token(request.args.get("tokenIn", type=str))
-    token_out = normalize_token(request.args.get("tokenOut", type=str))
+    token_in = request.args.get("tokenIn", type=str)
+    token_out = request.args.get("tokenOut", type=str)
     amount_in = request.args.get("amount", type=Decimal)
 
     if token_in is None or token_out is None or amount_in is None:
         return {"error": "缺少必要參數 tokenIn、tokenOut 或 amount"}, 400
+
+    token_in = normalize_token(token_in)
+    token_out = normalize_token(token_out)
+    if token_in is None or token_out is None:
+        return {"error": "tokenIn 或 tokenOut 格式錯誤"}, 400
+
     pool_id = find_pool_id(token_in, token_out)
     if pool_id is None:
         return {"error": f"找不到 {token_in}/{token_out} 這個交易對的池子"}, 404
@@ -239,10 +249,15 @@ def create_pool():
     if not token_a or not token_b or reserve_a is None or reserve_b is None:
         return {"error": "缺少必要欄位"}, 400
 
-    token_a = token_a.strip().upper() # strip() 是 Python 字串方法，移除字串前後的空白字元
-    token_b = token_b.strip().upper()
+    token_a = normalize_token(token_a)
+    token_b = normalize_token(token_b)
+
+    if token_a is None or token_b is None:
+        return {"error": "tokenIn 或 tokenOut 格式錯誤"}, 400
+
     if token_a == token_b:
         return {"error": "兩個代幣不能相同"}, 400
+
 
     try:
         reserve_a = Decimal(str(reserve_a))
