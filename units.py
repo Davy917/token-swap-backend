@@ -1,4 +1,23 @@
 import re
+from sqlalchemy.types import TypeDecorator, String
+
+class BigIntAsText(TypeDecorator):
+    impl = String
+    cache_ok = True
+    def process_bind_param(self, value, dialect): # value預設是 int
+        if value is None:
+            return None
+        if type(value) is not int:
+            raise TypeError(f"只接受 int，不接受 {type(value)}")
+        if value < 0:
+            raise ValueError("儲備量與金額不應為負")
+        return str(value)
+    def process_result_value(self, value, dialect): # value預設是 str
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"預期輸出 str，卻輸出 {type(value)}")
+        return int(value)
 
 def to_base_units(amount_str: str, decimals: int) -> int:
     if not isinstance(amount_str, str):
@@ -12,8 +31,8 @@ def to_base_units(amount_str: str, decimals: int) -> int:
 
     whole, _, frac = amount_str.partition(".")
     return int(whole + frac.ljust(decimals, "0"))
-    amount = Decimal(amount_str)
-    return int(amount * (10 ** decimals)) # 保留Decimal版本寫法
+    # amount = Decimal(amount_str)
+    # return int(amount * (10 ** decimals)) # 保留Decimal版本寫法
 
 def from_base_units(amount: int, decimals: int) -> str:
     whole, frac = divmod(amount, 10 ** decimals)
@@ -28,8 +47,6 @@ if __name__ == "__main__":
     from_base_units(1500000, 6)
     # print(f"{1.1 * 100:.20f}")
     # print(format(1.1 * 100, ".20f"))
-
-
 
 """
 partition() 的作用： 將字串分成三部分
