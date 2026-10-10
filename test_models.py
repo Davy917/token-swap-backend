@@ -33,7 +33,7 @@ class TestForeignKey(ModelTestCase):
     def test_reserve_with_unknown_token_rejected(self):
         pool = self.make_pool()
         db.session.add(PoolReserve(pool_id=pool.id, token="DOGE", reserve=1))
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(IntegrityError): # 期望下一步會拋 IntegrityError 例外，如果沒拋就測試失敗。
             db.session.commit()
     def test_swap_with_unknown_token_rejected(self):
         new_swap = Swap(
@@ -77,7 +77,7 @@ class TestConstraints(ModelTestCase):
             last_updated_time="t"
         )
         db.session.add(new_pool)
-        with self.assertRaises(IntegrityError): # 期望下一步會拋 IntegrityError 例外，如果沒拋就測試失敗。
+        with self.assertRaises(IntegrityError):
             db.session.commit()
 
     def test_token_requires_decimals(self):
