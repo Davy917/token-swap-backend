@@ -91,6 +91,17 @@ class TestConstraints(ModelTestCase):
         with self.assertRaises(IntegrityError):
             db.session.commit()
 
+    def test_reversed_pair_rejected(self):
+        self.make_pool()  # 建立 (ETH, USDT)
+        db.session.add(Pool(token_a="USDT", token_b="ETH", last_updated_time="t"))
+        with self.assertRaises(IntegrityError):
+            db.session.commit()
+
+    def test_same_token_pair_rejected(self):
+        db.session.add(Pool(token_a="ETH", token_b="ETH", last_updated_time="t"))
+        with self.assertRaises(IntegrityError):
+            db.session.commit()
+
 class TestBigIntColumn(ModelTestCase):
     def test_big_value_roundtrip(self):
         pool = self.make_pool()

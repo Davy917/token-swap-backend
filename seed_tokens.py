@@ -18,6 +18,7 @@ with app.app_context():
     db.session.add_all([new_token_1, new_token_2, new_token_3])
     try:
         db.session.commit()
+        print("已新增 3 個 Token")
     except IntegrityError as e:
         db.session.rollback()
         print(f"新增 Token 失敗: {e.orig}")  # e.orig 是底層的錯誤訊息

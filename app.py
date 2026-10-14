@@ -26,7 +26,10 @@ class Pool(db.Model):
     token_a = db.Column(db.ForeignKey("tokens.symbol"), nullable=False)
     token_b = db.Column(db.ForeignKey("tokens.symbol"), nullable=False)
     last_updated_time = db.Column(db.String, nullable=False)
-    __table_args__ = (db.UniqueConstraint("token_a", "token_b", name = "uix_token_pair"),)
+    __table_args__ = (
+        db.UniqueConstraint("token_a", "token_b", name="uix_token_pair"),
+        db.CheckConstraint("token_a < token_b", name="chk_token_pair_order"),
+    )
 
 class Swap(db.Model):
     __tablename__ = "swaps"
@@ -43,3 +46,13 @@ class PoolReserve(db.Model):
     pool_id = db.Column(db.Integer, db.ForeignKey("pools.id"), nullable=False)
     token = db.Column(db.String, db.ForeignKey("tokens.symbol"), nullable=False)
     reserve = db.Column(BigIntAsText, nullable=False)
+
+def normalize_token_pair(token_a, token_b, reserve_a, reserve_b):
+    pairs = sorted([(token_a.upper(), reserve_a), (token_b.upper(), reserve_b)])
+    return pairs[0][0], pairs[1][0], pairs[0][1], pairs[1][1]
+
+def normalize_token(token):
+    if not isinstance(token, str): #檢查 token 是否是字串型別
+        return None
+    token = token.strip().upper() # strip() 是 Python 字串方法，移除字串前後的空白字元
+    return token or None
