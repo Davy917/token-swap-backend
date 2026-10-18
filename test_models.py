@@ -1,4 +1,5 @@
 import os
+# 記憶體資料庫，完全獨立
 os.environ["DATABASE_URL"] = "sqlite://"      # 必須在 import app 之前
 
 import unittest
@@ -9,7 +10,7 @@ from app import app, db, Token, Pool, PoolReserve, Swap
 class ModelTestCase(unittest.TestCase):
     def setUp(self):
         # 保險：絕對不能對真正的 swap.db 做 drop_all
-        self.assertEqual(app.config["SQLALCHEMY_DATABASE_URI"], "sqlite://")
+        self.assertEqual(app.config["SQLALCHEMY_DATABASE_URI"], "sqlite://") # （沒有檔案路徑）代表純記憶體資料庫，程式一結束就消失，跟 swap.db 完全無關。
         self.ctx = app.app_context()
         self.ctx.push()
         db.create_all()
@@ -17,7 +18,7 @@ class ModelTestCase(unittest.TestCase):
                             Token(symbol="ETH", decimals=18)])
         db.session.commit()
 
-    def tearDown(self):
+    def tearDown(self): # 每次清空
         db.session.remove()
         db.drop_all()
         self.ctx.pop()
@@ -101,6 +102,22 @@ class TestConstraints(ModelTestCase):
         db.session.add(Pool(token_a="ETH", token_b="ETH", last_updated_time="t"))
         with self.assertRaises(IntegrityError):
             db.session.commit()
+
+class TestFlushRollback(ModelTestCase):
+    def test_flush_then_bad_reserve_rolls_back_pool(self):
+        # 1. 建立 Pool 並 flush（讓資料庫產生 id，但尚未 commit）
+        pool = Pool(token_a="ETH", token_b="USDT", last_updated_time="t")
+        db.session.add(pool)
+        db.session.flush()
+
+        # 2. 加一筆 token="DOGE"（不存在於 tokens 表），commit 應該拋 IntegrityError
+        db.session.add(PoolReserve(pool_id=pool.id, token="DOGE", reserve=1))
+        with self.assertRaises(IntegrityError):
+            db.session.commit()
+
+        # 3. rollback 之後，Pool 也應該一起消失
+        db.session.rollback()
+        self.assertEqual(Pool.query.count(), 0)
 
 class TestBigIntColumn(ModelTestCase):
     def test_big_value_roundtrip(self):
