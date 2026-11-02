@@ -1,46 +1,7 @@
-from units import to_base_units
-import os
-# 記憶體資料庫，完全獨立
-os.environ["DATABASE_URL"] = "sqlite://"      # 必須在 import app 之前
-
-import unittest
+from test_case import QuoteTestCase # 必須最先 import：它會在 import app 之前設定 DATABASE_URL
 from services import quote, InvalidInputError, NoResourceError, QuoteResult
-from app import app, db, Token, Pool, PoolReserve
-
-class QuoteTestCase(unittest.TestCase):
-    def setUp(self):
-        # 保險：絕對不能對真正的 swap.db 做 drop_all
-        self.assertEqual(app.config["SQLALCHEMY_DATABASE_URI"], "sqlite://") # （沒有檔案路徑）代表純記憶體資料庫，程式一結束就消失，跟 swap.db 完全無關。
-        self.ctx = app.app_context()
-        self.ctx.push()
-        db.create_all()
-        db.session.add_all([Token(symbol="USDT", decimals=6),
-                            Token(symbol="ETH", decimals=18),
-                            Token(symbol="BTC", decimals=8)
-                           ])
-        db.session.commit()
-        new_pool = Pool(token_a="ETH", token_b="USDT", last_updated_time="t")
-        db.session.add(new_pool)
-        db.session.flush()
-        pool_id = new_pool.id
-        usdt_reserve = PoolReserve(
-            pool_id=pool_id,
-            token="USDT",
-            reserve=to_base_units("25000", 6)
-        )
-        eth_reserve = PoolReserve(
-            pool_id=pool_id,
-            token="ETH",
-            reserve=to_base_units("10", 18)
-        )
-        db.session.add_all([usdt_reserve, eth_reserve])
-        db.session.commit()
-
-
-    def tearDown(self): # 每次清空
-        db.session.remove()
-        db.drop_all()
-        self.ctx.pop()
+from app import PoolReserve
+import unittest
 
 class TestTwoSideInput(QuoteTestCase):
     def test_normal_input(self):
@@ -133,6 +94,14 @@ class TestErrorMsgSequence(QuoteTestCase):
     def test_same_token_and_not_exist_error_msg_order(self):
         with self.assertRaises(InvalidInputError):
             quote("SUI", "SUI", "10")
+
+class TestTypeErrorPropagation(QuoteTestCase):
+    def test_get_amount_out_type_error_propagates(self):
+        from unittest import mock
+        with mock.patch('services.get_amount_out', side_effect=TypeError("Mock TypeError")):
+            with self.assertRaises(TypeError) as ctx:
+                quote("ETH", "USDT", "1")
+            self.assertEqual(str(ctx.exception), "Mock TypeError")
 
 if __name__ == "__main__":
     unittest.main()

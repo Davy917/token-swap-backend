@@ -1,34 +1,7 @@
-import os
-# 記憶體資料庫，完全獨立
-os.environ["DATABASE_URL"] = "sqlite://"      # 必須在 import app 之前
-
-import unittest
+from test_case import ModelTestCase  # 必須最先 import：它會在 import app 之前設定 DATABASE_URL
 from sqlalchemy.exc import IntegrityError, StatementError
-from app import app, db, Token, Pool, PoolReserve, Swap
-
-
-class ModelTestCase(unittest.TestCase):
-    def setUp(self):
-        # 保險：絕對不能對真正的 swap.db 做 drop_all
-        self.assertEqual(app.config["SQLALCHEMY_DATABASE_URI"], "sqlite://") # （沒有檔案路徑）代表純記憶體資料庫，程式一結束就消失，跟 swap.db 完全無關。
-        self.ctx = app.app_context()
-        self.ctx.push()
-        db.create_all()
-        db.session.add_all([Token(symbol="USDT", decimals=6),
-                            Token(symbol="ETH", decimals=18)])
-        db.session.commit()
-
-    def tearDown(self): # 每次清空
-        db.session.remove()
-        db.drop_all()
-        self.ctx.pop()
-
-    def make_pool(self):
-        pool = Pool(token_a="ETH", token_b="USDT", last_updated_time="t")
-        db.session.add(pool)
-        db.session.commit()
-        return pool
-
+from app import db, Token, Pool, PoolReserve, Swap
+import unittest
 
 class TestForeignKey(ModelTestCase):
     def test_reserve_with_unknown_token_rejected(self):
@@ -71,7 +44,7 @@ class TestForeignKey(ModelTestCase):
 
 class TestConstraints(ModelTestCase):
     def test_duplicate_pair_rejected(self):
-        pool1 = self.make_pool()
+        self.make_pool()  # 先建立 (ETH, USDT)
         new_pool = Pool(
             token_a="ETH",
             token_b="USDT",
@@ -93,7 +66,6 @@ class TestConstraints(ModelTestCase):
             db.session.commit()
 
     def test_reversed_pair_rejected(self):
-        self.make_pool()  # 建立 (ETH, USDT)
         db.session.add(Pool(token_a="USDT", token_b="ETH", last_updated_time="t"))
         with self.assertRaises(IntegrityError):
             db.session.commit()
