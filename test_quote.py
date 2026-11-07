@@ -98,10 +98,10 @@ class TestErrorMsgSequence(QuoteTestCase):
 class TestTypeErrorPropagation(QuoteTestCase):
     def test_get_amount_out_type_error_propagates(self):
         from unittest import mock
-        with mock.patch('services.get_amount_out', side_effect=TypeError("Mock TypeError")):
-            with self.assertRaises(TypeError) as ctx:
-                quote("ETH", "USDT", "1")
-            self.assertEqual(str(ctx.exception), "Mock TypeError")
+        with mock.patch('services.get_amount_out', side_effect=TypeError("Mock TypeError")): # 1. 布置：把函式換成假的
+            with self.assertRaises(TypeError) as ctx:                                        # 2. 準備：等著接 TypeError
+                quote("ETH", "USDT", "1")                         # 3. 執行：真的跑 quote()
+            self.assertEqual(str(ctx.exception), "Mock TypeError")                    # 4. 檢查
 
 if __name__ == "__main__":
     unittest.main()
