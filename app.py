@@ -23,6 +23,7 @@ class Token(db.Model):
 class Pool(db.Model):
     __tablename__ = "pools"
     id = db.Column(db.Integer, primary_key=True)
+    version = db.Column(db.Integer, nullable=False, default=1)
     token_a = db.Column(db.ForeignKey("tokens.symbol"), nullable=False)
     token_b = db.Column(db.ForeignKey("tokens.symbol"), nullable=False)
     last_updated_time = db.Column(db.String, nullable=False)

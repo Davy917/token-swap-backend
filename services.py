@@ -5,12 +5,16 @@ from app import normalize_token, Token, Pool, PoolReserve
 from units import to_base_units
 @dataclass(frozen=True)
 class QuoteResult:
+    pool_id: int
+    version: int
     token_in: str
     token_out: str
     amount_in: int
     amount_out: int
     decimals_in: int
     decimals_out: int
+    reserve_in: int
+    reserve_out: int
 
 class InvalidInputError(Exception):
     pass
@@ -34,12 +38,12 @@ def quote(token_in: str, token_out: str, amount_in: str) -> QuoteResult:
 
     pair = sorted([token_in, token_out])
     try:
-        pool_id = Pool.query.filter_by(token_a=pair[0], token_b=pair[1]).one().id
+        pool = Pool.query.filter_by(token_a=pair[0], token_b=pair[1]).one()
     except NoResultFound:
         raise NoResourceError(f"{token_in}/{token_out}流動性池不存在")
 
-    reserve_in = PoolReserve.query.filter_by(pool_id=pool_id, token=token_in).one().reserve
-    reserve_out = PoolReserve.query.filter_by(pool_id=pool_id, token=token_out).one().reserve
+    reserve_in = PoolReserve.query.filter_by(pool_id=pool.id, token=token_in).one().reserve
+    reserve_out = PoolReserve.query.filter_by(pool_id=pool.id, token=token_out).one().reserve
 
     try:
         amount_in = to_base_units(amount_in, token_in_decimals)
@@ -56,5 +60,9 @@ def quote(token_in: str, token_out: str, amount_in: str) -> QuoteResult:
         amount_in=amount_in,
         amount_out=amount_out,
         decimals_in=token_in_decimals,
-        decimals_out=token_out_decimals
+        decimals_out=token_out_decimals,
+        pool_id=pool.id,
+        version=pool.version,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out
     )

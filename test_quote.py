@@ -9,12 +9,16 @@ class TestTwoSideInput(QuoteTestCase):
         self.assertEqual(
             result,
             QuoteResult(
+                pool_id=1,
+                version=1,
                 token_in="ETH",
                 token_out="USDT",
                 amount_in=10**18,
                 amount_out=2272727272,
                 decimals_in=18,
-                decimals_out=6
+                decimals_out=6,
+                reserve_in=10*(10**18),
+                reserve_out=25000*(10**6)
             )
         )
     def test_reverse_input(self):
@@ -22,12 +26,16 @@ class TestTwoSideInput(QuoteTestCase):
         self.assertEqual(
             result,
             QuoteResult(
+                pool_id=1,
+                version=1,
                 token_in="USDT",
                 token_out="ETH",
                 amount_in=10**6,
                 amount_out=399984000639974,
                 decimals_in=6,
-                decimals_out=18
+                decimals_out=18,
+                reserve_in=25000 * (10 ** 6),
+                reserve_out=10 * (10 ** 18)
             )
         )
 class TestNormalizeInput(QuoteTestCase):
@@ -36,12 +44,16 @@ class TestNormalizeInput(QuoteTestCase):
         self.assertEqual(
             result,
             QuoteResult(
+                pool_id=1,
+                version=1,
                 token_in="ETH",
                 token_out="USDT",
                 amount_in=10**18,
                 amount_out=2272727272,
                 decimals_in=18,
-                decimals_out=6
+                decimals_out=6,
+                reserve_in=10 * (10 ** 18),
+                reserve_out=25000 * (10 ** 6)
             )
         )
 class TestInvalidInputError(QuoteTestCase):
